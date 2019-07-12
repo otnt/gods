@@ -1,45 +1,24 @@
-/*
-Copyright (c) 2015, Emir Pasic
-All rights reserved.
+// Copyright (c) 2015, Emir Pasic. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-* Redistributions of source code must retain the above copyright notice, this
-  list of conditions and the following disclaimer.
-
-* Redistributions in binary form must reproduce the above copyright notice,
-  this list of conditions and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
-// Implementation of Red-black tree.
+// Package redblacktree implements a red-black tree.
+//
 // Used by TreeSet and TreeMap.
+//
 // Structure is not thread safe.
+//
 // References: http://en.wikipedia.org/wiki/Red%E2%80%93black_tree
-
 package redblacktree
 
 import (
 	"fmt"
-	"github.com/emirpasic/gods/stacks/linkedliststack"
 	"github.com/emirpasic/gods/trees"
 	"github.com/emirpasic/gods/utils"
 )
 
-func assertInterfaceImplementation() {
-	var _ trees.Interface = (*Tree)(nil)
+func assertTreeImplementation() {
+	var _ trees.Tree = (*Tree)(nil)
 }
 
 type color bool
@@ -48,12 +27,14 @@ const (
 	black, red color = true, false
 )
 
+// Tree holds elements of the red-black tree
 type Tree struct {
 	Root       *Node
 	size       int
-	comparator utils.Comparator
+	Comparator utils.Comparator
 }
 
+// Node is a single element within the tree
 type Node struct {
 	Key    interface{}
 	Value  interface{}
@@ -63,46 +44,52 @@ type Node struct {
 	Parent *Node
 }
 
-// Instantiates a red-black tree with the custom comparator.
+// NewWith instantiates a red-black tree with the custom comparator.
 func NewWith(comparator utils.Comparator) *Tree {
-	return &Tree{comparator: comparator}
+	return &Tree{Comparator: comparator}
 }
 
-// Instantiates a red-black tree with the IntComparator, i.e. keys are of type int.
+// NewWithIntComparator instantiates a red-black tree with the IntComparator, i.e. keys are of type int.
 func NewWithIntComparator() *Tree {
-	return &Tree{comparator: utils.IntComparator}
+	return &Tree{Comparator: utils.IntComparator}
 }
 
-// Instantiates a red-black tree with the StringComparator, i.e. keys are of type string.
+// NewWithStringComparator instantiates a red-black tree with the StringComparator, i.e. keys are of type string.
 func NewWithStringComparator() *Tree {
-	return &Tree{comparator: utils.StringComparator}
+	return &Tree{Comparator: utils.StringComparator}
 }
 
-// Inserts node into the tree.
+// Put inserts node into the tree.
 // Key should adhere to the comparator's type assertion, otherwise method panics.
 func (tree *Tree) Put(key interface{}, value interface{}) {
-	insertedNode := &Node{Key: key, Value: value, color: red}
+	var insertedNode *Node
 	if tree.Root == nil {
-		tree.Root = insertedNode
+		// Assert key is of comparator's type for initial tree
+		tree.Comparator(key, key)
+		tree.Root = &Node{Key: key, Value: value, color: red}
+		insertedNode = tree.Root
 	} else {
 		node := tree.Root
 		loop := true
 		for loop {
-			compare := tree.comparator(key, node.Key)
+			compare := tree.Comparator(key, node.Key)
 			switch {
 			case compare == 0:
+				node.Key = key
 				node.Value = value
 				return
 			case compare < 0:
 				if node.Left == nil {
-					node.Left = insertedNode
+					node.Left = &Node{Key: key, Value: value, color: red}
+					insertedNode = node.Left
 					loop = false
 				} else {
 					node = node.Left
 				}
 			case compare > 0:
 				if node.Right == nil {
-					node.Right = insertedNode
+					node.Right = &Node{Key: key, Value: value, color: red}
+					insertedNode = node.Right
 					loop = false
 				} else {
 					node = node.Right
@@ -112,10 +99,10 @@ func (tree *Tree) Put(key interface{}, value interface{}) {
 		insertedNode.Parent = node
 	}
 	tree.insertCase1(insertedNode)
-	tree.size += 1
+	tree.size++
 }
 
-// Searches the node in the tree by key and returns its value or nil if key is not found in tree.
+// Get searches the node in the tree by key and returns its value or nil if key is not found in tree.
 // Second return parameter is true if key was found, otherwise false.
 // Key should adhere to the comparator's type assertion, otherwise method panics.
 func (tree *Tree) Get(key interface{}) (value interface{}, found bool) {
@@ -126,7 +113,7 @@ func (tree *Tree) Get(key interface{}) (value interface{}, found bool) {
 	return nil, false
 }
 
-// Remove the node from the tree by key.
+// Remove remove the node from the tree by key.
 // Key should adhere to the comparator's type assertion, otherwise method panics.
 func (tree *Tree) Remove(key interface{}) {
 	var child *Node
@@ -155,48 +142,126 @@ func (tree *Tree) Remove(key interface{}) {
 			child.color = black
 		}
 	}
-	tree.size -= 1
+	tree.size--
 }
 
-// Returns true if tree does not contain any nodes
+// Empty returns true if tree does not contain any nodes
 func (tree *Tree) Empty() bool {
 	return tree.size == 0
 }
 
-// Returns number of nodes in the tree.
+// Size returns number of nodes in the tree.
 func (tree *Tree) Size() int {
 	return tree.size
 }
 
-// Returns all keys in-order
+// Keys returns all keys in-order
 func (tree *Tree) Keys() []interface{} {
 	keys := make([]interface{}, tree.size)
-	for i, node := range tree.inOrder() {
-		keys[i] = node.Key
+	it := tree.Iterator()
+	for i := 0; it.Next(); i++ {
+		keys[i] = it.Key()
 	}
 	return keys
 }
 
-// Returns all values in-order based on the key.
+// Values returns all values in-order based on the key.
 func (tree *Tree) Values() []interface{} {
 	values := make([]interface{}, tree.size)
-	for i, node := range tree.inOrder() {
-		values[i] = node.Value
+	it := tree.Iterator()
+	for i := 0; it.Next(); i++ {
+		values[i] = it.Value()
 	}
 	return values
 }
 
-// Removes all nodes from the tree.
+// Left returns the left-most (min) node or nil if tree is empty.
+func (tree *Tree) Left() *Node {
+	var parent *Node
+	current := tree.Root
+	for current != nil {
+		parent = current
+		current = current.Left
+	}
+	return parent
+}
+
+// Right returns the right-most (max) node or nil if tree is empty.
+func (tree *Tree) Right() *Node {
+	var parent *Node
+	current := tree.Root
+	for current != nil {
+		parent = current
+		current = current.Right
+	}
+	return parent
+}
+
+// Floor Finds floor node of the input key, return the floor node or nil if no floor is found.
+// Second return parameter is true if floor was found, otherwise false.
+//
+// Floor node is defined as the largest node that is smaller than or equal to the given node.
+// A floor node may not be found, either because the tree is empty, or because
+// all nodes in the tree are larger than the given node.
+//
+// Key should adhere to the comparator's type assertion, otherwise method panics.
+func (tree *Tree) Floor(key interface{}) (floor *Node, found bool) {
+	found = false
+	node := tree.Root
+	for node != nil {
+		compare := tree.Comparator(key, node.Key)
+		switch {
+		case compare == 0:
+			return node, true
+		case compare < 0:
+			node = node.Left
+		case compare > 0:
+			floor, found = node, true
+			node = node.Right
+		}
+	}
+	if found {
+		return floor, true
+	}
+	return nil, false
+}
+
+// Ceiling finds ceiling node of the input key, return the ceiling node or nil if no ceiling is found.
+// Second return parameter is true if ceiling was found, otherwise false.
+//
+// Ceiling node is defined as the smallest node that is larger than or equal to the given node.
+// A ceiling node may not be found, either because the tree is empty, or because
+// all nodes in the tree are smaller than the given node.
+//
+// Key should adhere to the comparator's type assertion, otherwise method panics.
+func (tree *Tree) Ceiling(key interface{}) (ceiling *Node, found bool) {
+	found = false
+	node := tree.Root
+	for node != nil {
+		compare := tree.Comparator(key, node.Key)
+		switch {
+		case compare == 0:
+			return node, true
+		case compare < 0:
+			ceiling, found = node, true
+			node = node.Left
+		case compare > 0:
+			node = node.Right
+		}
+	}
+	if found {
+		return ceiling, true
+	}
+	return nil, false
+}
+
+// Clear removes all nodes from the tree.
 func (tree *Tree) Clear() {
 	tree.Root = nil
 	tree.size = 0
 }
 
-// Return comparator of the tree
-func (tree *Tree) Comparator() utils.Comparator {
-	return tree.comparator
-}
-
+// String returns a string representation of container
 func (tree *Tree) String() string {
 	str := "RedBlackTree\n"
 	if !tree.Empty() {
@@ -207,34 +272,6 @@ func (tree *Tree) String() string {
 
 func (node *Node) String() string {
 	return fmt.Sprintf("%v", node.Key)
-}
-
-// Returns all nodes in order
-func (tree *Tree) inOrder() []*Node {
-	nodes := make([]*Node, tree.size)
-	if tree.size > 0 {
-		current := tree.Root
-		stack := linkedliststack.New()
-		done := false
-		count := 0
-		for !done {
-			if current != nil {
-				stack.Push(current)
-				current = current.Left
-			} else {
-				if !stack.Empty() {
-					currentPop, _ := stack.Pop()
-					current = currentPop.(*Node)
-					nodes[count] = current
-					count += 1
-					current = current.Right
-				} else {
-					done = true
-				}
-			}
-		}
-	}
-	return nodes
 }
 
 func output(node *Node, prefix string, isTail bool, str *string) {
@@ -268,7 +305,7 @@ func output(node *Node, prefix string, isTail bool, str *string) {
 func (tree *Tree) lookup(key interface{}) *Node {
 	node := tree.Root
 	for node != nil {
-		compare := tree.comparator(key, node.Key)
+		compare := tree.Comparator(key, node.Key)
 		switch {
 		case compare == 0:
 			return node
@@ -301,9 +338,8 @@ func (node *Node) sibling() *Node {
 	}
 	if node == node.Parent.Left {
 		return node.Parent.Right
-	} else {
-		return node.Parent.Left
 	}
+	return node.Parent.Left
 }
 
 func (tree *Tree) rotateLeft(node *Node) {
@@ -406,9 +442,8 @@ func (node *Node) maximumNode() *Node {
 func (tree *Tree) deleteCase1(node *Node) {
 	if node.Parent == nil {
 		return
-	} else {
-		tree.deleteCase2(node)
 	}
+	tree.deleteCase2(node)
 }
 
 func (tree *Tree) deleteCase2(node *Node) {
